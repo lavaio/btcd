@@ -13,9 +13,9 @@ import (
 )
 
 // MaxBlockHeaderPayload is the maximum number of bytes a block header can be.
-// Version 4 bytes + Timestamp 4 bytes + Bits 4 bytes + Nonce 4 bytes +
-// PrevBlock and MerkleRoot hashes.
-const MaxBlockHeaderPayload = 16 + (chainhash.HashSize * 2)
+// PrevBlock and MerkleRoot hashes + GenSign hash + BaseTarget 8 bytes +
+// PlotId 8 bytes + Deadline 8 bytes.
+const MaxBlockHeaderPayload = 136
 
 // BlockHeader defines information about a block and is used in the bitcoin
 // block (MsgBlock) and headers (MsgHeaders) messages.
@@ -38,11 +38,23 @@ type BlockHeader struct {
 
 	// Nonce used to generate the block.
 	Nonce uint32
+
+	// Poc2 generation hash
+	GenSign chainhash.Hash
+
+	// Poc2 plot id
+	PlotId uint64
+
+	// Poc2 basetarget
+	BaseTarget uint64
+
+	// Poc2 deadline
+	Deadline uint64
 }
 
 // blockHeaderLen is a constant that represents the number of bytes for a block
 // header.
-const blockHeaderLen = 80
+const blockHeaderLen = MaxBlockHeaderPayload
 
 // BlockHash computes the block identifier hash for the given block header.
 func (h *BlockHeader) BlockHash() chainhash.Hash {
@@ -115,7 +127,8 @@ func NewBlockHeader(version int32, prevHash, merkleRootHash *chainhash.Hash,
 // decoding from the wire.
 func readBlockHeader(r io.Reader, pver uint32, bh *BlockHeader) error {
 	return readElements(r, &bh.Version, &bh.PrevBlock, &bh.MerkleRoot,
-		(*uint32Time)(&bh.Timestamp), &bh.Bits, &bh.Nonce)
+		(*uint32Time)(&bh.Timestamp), &bh.Bits, &bh.Nonce, &bh.GenSign, &bh.PlotId,
+		&bh.BaseTarget, &bh.Deadline)
 }
 
 // writeBlockHeader writes a bitcoin block header to w.  See Serialize for
@@ -124,5 +137,5 @@ func readBlockHeader(r io.Reader, pver uint32, bh *BlockHeader) error {
 func writeBlockHeader(w io.Writer, pver uint32, bh *BlockHeader) error {
 	sec := uint32(bh.Timestamp.Unix())
 	return writeElements(w, bh.Version, &bh.PrevBlock, &bh.MerkleRoot,
-		sec, bh.Bits, bh.Nonce)
+		sec, bh.Bits, bh.Nonce, bh.GenSign, bh.PlotId, bh.BaseTarget, bh.Deadline)
 }
