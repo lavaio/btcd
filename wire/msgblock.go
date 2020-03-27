@@ -229,6 +229,10 @@ func (msg *MsgBlock) SerializeSize() int {
 	// Block header bytes + Serialized varint size for the number of
 	// transactions.
 	n := blockHeaderLen + VarIntSerializeSize(uint64(len(msg.Transactions)))
+	hasPKID := msg.Header.PubKeyID == [20]byte{}
+	if !hasPKID {
+		n -= 20
+	}
 
 	for _, tx := range msg.Transactions {
 		n += tx.SerializeSize()
@@ -243,6 +247,10 @@ func (msg *MsgBlock) SerializeSizeStripped() int {
 	// Block header bytes + Serialized varint size for the number of
 	// transactions.
 	n := blockHeaderLen + VarIntSerializeSize(uint64(len(msg.Transactions)))
+	hasPKID := msg.Header.PubKeyID == [20]byte{}
+	if !hasPKID {
+		n -= 20
+	}
 
 	for _, tx := range msg.Transactions {
 		n += tx.SerializeSizeStripped()

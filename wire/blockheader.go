@@ -13,9 +13,10 @@ import (
 )
 
 // MaxBlockHeaderPayload is the maximum number of bytes a block header can be.
+// Version 4 bytes + Timestamp 4 bytes + Bits 4 bytes + Nonce 4 bytes +
 // PrevBlock and MerkleRoot hashes + GenSign hash + BaseTarget 8 bytes +
 // PlotId 8 bytes + Deadline 8 bytes.
-const MaxBlockHeaderPayload = 136
+const MaxBlockHeaderPayload = 136 + 20
 
 // BlockHeader defines information about a block and is used in the bitcoin
 // block (MsgBlock) and headers (MsgHeaders) messages.
@@ -44,6 +45,9 @@ type BlockHeader struct {
 
 	// Poc2 plot id
 	PlotId uint64
+
+	// Poc2+ public key id
+	PubKeyID [20]byte
 
 	// Poc2 basetarget
 	BaseTarget uint64
@@ -126,9 +130,16 @@ func NewBlockHeader(version int32, prevHash, merkleRootHash *chainhash.Hash,
 // decoding block headers stored to disk, such as in a database, as opposed to
 // decoding from the wire.
 func readBlockHeader(r io.Reader, pver uint32, bh *BlockHeader) error {
-	return readElements(r, &bh.Version, &bh.PrevBlock, &bh.MerkleRoot,
-		(*uint32Time)(&bh.Timestamp), &bh.Bits, &bh.Nonce, &bh.GenSign, &bh.PlotId,
-		&bh.BaseTarget, &bh.Deadline)
+	err := readElements(r, &bh.Version, &bh.PrevBlock, &bh.MerkleRoot,
+		(*uint32Time)(&bh.Timestamp), &bh.Bits, &bh.Nonce, &bh.GenSign, &bh.PlotId)
+	if err != nil {
+		return err
+	}
+	nullHash := bh.PrevBlock == chainhash.Hash{}
+	if bh.PlotId > 0 || nullHash {
+		return readElements(r, &bh.BaseTarget, &bh.Deadline)
+	}
+	return readElements(r, &bh.PubKeyID, &bh.BaseTarget, &bh.Deadline)
 }
 
 // writeBlockHeader writes a bitcoin block header to w.  See Serialize for
@@ -136,6 +147,11 @@ func readBlockHeader(r io.Reader, pver uint32, bh *BlockHeader) error {
 // opposed to encoding for the wire.
 func writeBlockHeader(w io.Writer, pver uint32, bh *BlockHeader) error {
 	sec := uint32(bh.Timestamp.Unix())
+	nullHash := bh.PrevBlock == chainhash.Hash{}
+	if bh.PlotId > 0 || nullHash {
+		return writeElements(w, bh.Version, &bh.PrevBlock, &bh.MerkleRoot,
+			sec, bh.Bits, bh.Nonce, bh.GenSign, bh.PlotId, bh.BaseTarget, bh.Deadline)
+	}
 	return writeElements(w, bh.Version, &bh.PrevBlock, &bh.MerkleRoot,
-		sec, bh.Bits, bh.Nonce, bh.GenSign, bh.PlotId, bh.BaseTarget, bh.Deadline)
+		sec, bh.Bits, bh.Nonce, bh.GenSign, bh.PlotId, bh.PubKeyID, bh.BaseTarget, bh.Deadline)
 }
